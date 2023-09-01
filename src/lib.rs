@@ -1,8 +1,42 @@
+//! Wrap `Read` with a read statistics logger.
+
+//! ## Usage example
+//!
+//! ```
+//! use std::fs::File;
+//! use std::io::{BufReader, Read};
+//! use read_logger::{Level, ReadLogger};
+//!
+//! let f = File::open("Cargo.toml").unwrap();
+//! let mut read_logger = ReadLogger::new(Level::Debug, "READ", f);
+//! let mut reader = BufReader::new(&mut read_logger);
+//!
+//! let mut bytes = [0; 4];
+//! reader.read_exact(&mut bytes).unwrap();
+//! reader.read_exact(&mut bytes).unwrap();
+//!
+//! // BufReader does only one read() call:
+//! assert_eq!(read_logger.stats().read_count, 1);
+//! assert_eq!(read_logger.stats().bytes_total, 8192);
+//! ```
+
+//! Run with:
+//! ```shell
+//! RUST_LOG=read_logger=debug cargo run
+//! ```
+
+//! Log output:
+//! ```text
+//! [2023-09-01T16:20:01Z DEBUG read_logger] ,tag,length,begin,end,count,bytes_total
+//! [2023-09-01T16:20:01Z DEBUG read_logger] ,READ,8192,0,8192,1,8192
+//! ```
+
 use log::log;
 pub use log::Level;
 use std::io::{Error, Read, Seek, SeekFrom};
 use std::result::Result;
 
+/// Log reads, counts and totals
 pub struct ReadStatsLogger {
     tag: String,
     level: Level,
@@ -12,7 +46,7 @@ pub struct ReadStatsLogger {
 
 impl ReadStatsLogger {
     pub fn new(level: Level, tag: &str) -> Self {
-        log!(level, ",tag,length,from,to,count,bytes_total");
+        log!(level, ",tag,length,begin,end,count,bytes_total");
         ReadStatsLogger {
             tag: tag.to_string(),
             level,
@@ -20,6 +54,7 @@ impl ReadStatsLogger {
             bytes_total: 0,
         }
     }
+    /// Log a read request with `length` starting at `begin`
     pub fn log(&mut self, begin: usize, length: usize) {
         // Wraparound is ok
         self.read_count += 1;
@@ -35,6 +70,7 @@ impl ReadStatsLogger {
     }
 }
 
+/// Wrap `Read` with a [ReadStatsLogger]
 pub struct ReadLogger<T: Read> {
     inner: T,
     logger: ReadStatsLogger,
@@ -68,6 +104,7 @@ impl<T: Read + Seek> Seek for ReadLogger<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
     use std::io::{BufReader, Cursor};
 
     fn init_logger() {
@@ -133,5 +170,18 @@ mod tests {
         assert_eq!(buffer.stats().bytes_total, 8);
         assert_eq!(cursor.stats().read_count, 1);
         assert_eq!(cursor.stats().bytes_total, 8192);
+    }
+
+    #[test]
+    fn file() {
+        init_logger();
+        let f = File::open("Cargo.toml").unwrap();
+        let mut read_logger = ReadLogger::new(Level::Debug, "READ", f);
+        let mut reader = BufReader::new(&mut read_logger);
+        let mut bytes = [0; 4];
+        reader.read_exact(&mut bytes).unwrap();
+        reader.read_exact(&mut bytes).unwrap();
+        assert_eq!(read_logger.stats().read_count, 1);
+        assert_eq!(read_logger.stats().bytes_total, 8192);
     }
 }
