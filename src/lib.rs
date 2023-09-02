@@ -62,7 +62,7 @@ impl ReadStatsLogger {
         // Wraparound is ok
         self.read_count += 1;
         self.bytes_total += length;
-        let end = begin + length - 1;
+        let end = (begin + length).saturating_sub(1);
         log!(
             self.level,
             "Read {begin}-{end} ({length} bytes). Total requests: {} ({} bytes),{},{begin},{end},{length},{request_length},{},{}",
