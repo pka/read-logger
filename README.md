@@ -1,5 +1,6 @@
 # read-logger
 
+[![CI build](https://github.com/pka/read-logger/workflows/CI/badge.svg)](https://github.com/pka/read-logger/actions)
 [![crates.io version](https://img.shields.io/crates/v/read-logger.svg)](https://crates.io/crates/read-logger)
 [![docs.rs docs](https://docs.rs/read-logger/badge.svg)](https://docs.rs/read-logger)
 
