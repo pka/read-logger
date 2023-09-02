@@ -78,6 +78,7 @@ impl ReadStatsLogger {
 /// Wrap `Read` with a [ReadStatsLogger]
 pub struct ReadLogger<T: Read> {
     inner: T,
+    offset: usize,
     logger: ReadStatsLogger,
 }
 
@@ -85,6 +86,7 @@ impl<T: Read> ReadLogger<T> {
     pub fn new(read: T, level: Level, tag: &str) -> Self {
         ReadLogger {
             inner: read,
+            offset: 0,
             logger: ReadStatsLogger::new(level, tag),
         }
     }
@@ -96,14 +98,17 @@ impl<T: Read> ReadLogger<T> {
 impl<T: Read> Read for ReadLogger<T> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let length = self.inner.read(buf)?;
-        self.logger.log(0, length, buf.len());
+        self.logger.log(self.offset, length, buf.len());
+        self.offset += length;
         Ok(length)
     }
 }
 
 impl<T: Read + Seek> Seek for ReadLogger<T> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, Error> {
-        self.inner.seek(pos)
+        let offset = self.inner.seek(pos)?;
+        self.offset = offset as usize;
+        Ok(offset)
     }
 }
 
