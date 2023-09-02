@@ -8,7 +8,7 @@
 //! use read_logger::{Level, ReadLogger};
 //!
 //! let f = File::open("Cargo.toml").unwrap();
-//! let mut read_logger = ReadLogger::new(Level::Debug, "READ", f);
+//! let mut read_logger = ReadLogger::new(f, Level::Debug, "READ");
 //! let mut reader = BufReader::new(&mut read_logger);
 //!
 //! let mut bytes = [0; 4];
@@ -46,7 +46,10 @@ pub struct ReadStatsLogger {
 
 impl ReadStatsLogger {
     pub fn new(level: Level, tag: &str) -> Self {
-        log!(level, ",tag,length,begin,end,count,bytes_total");
+        log!(
+            level,
+            "Initialize Read logger `{tag}`,tag,begin,end,length,count,bytes_total"
+        );
         ReadStatsLogger {
             tag: tag.to_string(),
             level,
@@ -59,11 +62,13 @@ impl ReadStatsLogger {
         // Wraparound is ok
         self.read_count += 1;
         self.bytes_total += length;
+        let end = begin + length;
         log!(
             self.level,
-            ",{},{length},{begin},{},{},{}",
+            "Read {begin}-{end} ({length} bytes). Total requests: {} - bytes: {},{},{begin},{end},{length},{},{}",
+            self.read_count,
+            self.bytes_total,
             self.tag,
-            begin + length,
             self.read_count,
             self.bytes_total,
         );
@@ -77,7 +82,7 @@ pub struct ReadLogger<T: Read> {
 }
 
 impl<T: Read> ReadLogger<T> {
-    pub fn new(level: Level, tag: &str, read: T) -> Self {
+    pub fn new(read: T, level: Level, tag: &str) -> Self {
         ReadLogger {
             inner: read,
             logger: ReadStatsLogger::new(level, tag),
@@ -125,7 +130,7 @@ mod tests {
     fn read_cursor() {
         init_logger();
         let text = "0123456789";
-        let mut reader = ReadLogger::new(Level::Info, "READ", Cursor::new(text));
+        let mut reader = ReadLogger::new(Cursor::new(text), Level::Info, "READ");
 
         let mut bytes = [0; 4];
         reader.read_exact(&mut bytes).unwrap();
@@ -144,7 +149,7 @@ mod tests {
     fn seek() {
         init_logger();
         let text = "0123456789";
-        let mut reader = ReadLogger::new(Level::Info, "READ", Cursor::new(text));
+        let mut reader = ReadLogger::new(Cursor::new(text), Level::Info, "READ");
 
         let mut bytes = [0; 4];
         reader.seek(SeekFrom::Start(4)).unwrap();
@@ -158,9 +163,9 @@ mod tests {
     fn buf_reader() {
         init_logger();
         let text = "0123456789";
-        let mut cursor = ReadLogger::new(Level::Debug, "READ", Cursor::new(text));
+        let mut cursor = ReadLogger::new(Cursor::new(text), Level::Debug, "READ");
         // To be able to access stats after reading, we borrow cursor to BufReader
-        let mut buffer = ReadLogger::new(Level::Info, "BUFFER", BufReader::new(&mut cursor));
+        let mut buffer = ReadLogger::new(BufReader::new(&mut cursor), Level::Info, "BUFFER");
 
         let mut bytes = [0; 4];
         buffer.read_exact(&mut bytes).unwrap();
@@ -176,7 +181,7 @@ mod tests {
     fn file() {
         init_logger();
         let f = File::open("Cargo.toml").unwrap();
-        let mut read_logger = ReadLogger::new(Level::Debug, "READ", f);
+        let mut read_logger = ReadLogger::new(f, Level::Debug, "READ");
         let mut reader = BufReader::new(&mut read_logger);
         let mut bytes = [0; 4];
         reader.read_exact(&mut bytes).unwrap();
